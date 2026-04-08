@@ -3,45 +3,553 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trinity-Med | Seizure Prediction & Discovery</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <title>Trinity | Seizure Prediction & Discovery</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0f1e 0%, #0d1425 100%);
+            min-height: 100vh;
+            color: #e2e8f0;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        h1 {
+            font-size: 3rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a855f7);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+        }
+        
+        .tagline {
+            font-size: 1.25rem;
+            color: #94a3b8;
+            margin-top: 0.5rem;
+        }
+        
+        /* Stats Banner */
+        .stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 3rem;
+            flex-wrap: wrap;
+        }
+        
+        .stat-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            text-align: center;
+            min-width: 150px;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #60a5fa;
+        }
+        
+        .stat-label {
+            font-size: 0.75rem;
+            color: #94a3b8;
+            margin-top: 0.5rem;
+        }
+        
+        /* Mode Selector */
+        .mode-selector {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .mode-btn {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 0.75rem 2rem;
+            border-radius: 2rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .mode-btn.active {
+            background: linear-gradient(135deg, #60a5fa, #a855f7);
+            border-color: transparent;
+        }
+        
+        /* URL Input Section */
+        .url-section, .upload-section {
+            background: rgba(255,255,255,0.05);
+            border-radius: 1.5rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .section-title {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .url-input-group {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .url-input {
+            flex: 1;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            color: white;
+            font-family: monospace;
+        }
+        
+        /* Drag & Drop Area */
+        .drop-zone {
+            border: 2px dashed rgba(96,165,250,0.4);
+            border-radius: 1rem;
+            padding: 3rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: #60a5fa;
+            background: rgba(96,165,250,0.05);
+        }
+        
+        /* Progress */
+        .progress-container {
+            margin-top: 1rem;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #60a5fa, #a855f7);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        
+        /* Results */
+        .results-card {
+            background: rgba(255,255,255,0.05);
+            border-radius: 1.5rem;
+            padding: 2rem;
+            backdrop-filter: blur(10px);
+            display: none;
+        }
+        
+        .results-header {
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        
+        .metric {
+            background: rgba(0,0,0,0.3);
+            padding: 1rem;
+            border-radius: 0.75rem;
+            text-align: center;
+        }
+        
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+        
+        .failed-badge {
+            background: rgba(34,197,94,0.2);
+            border-left: 4px solid #22c55e;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin: 1rem 0;
+        }
+        
+        /* Timeline Chart */
+        .chart-container {
+            margin: 1.5rem 0;
+            background: rgba(0,0,0,0.2);
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+        
+        canvas {
+            max-height: 300px;
+            width: 100%;
+        }
+        
+        /* Buttons */
+        .btn {
+            background: linear-gradient(135deg, #60a5fa, #a855f7);
+            border: none;
+            color: white;
+            padding: 0.75rem 2rem;
+            border-radius: 2rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .btn:hover {
+            transform: scale(1.02);
+        }
+        
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+        }
+        
+        .btn-download {
+            margin-top: 1rem;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Raw Output */
+        .raw-output {
+            background: #0a0a0a;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            font-family: monospace;
+            font-size: 0.75rem;
+            overflow-x: auto;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 1rem;
+        }
+        
+        footer {
+            text-align: center;
+            color: #475569;
+            font-size: 0.75rem;
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .processing {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
 </head>
 <body>
-    <nav class="navbar">
-        <div class="logo">🧠 Trinity-Med</div>
-        <button class="hamburger" onclick="toggleMenu()">☰</button>
-    </nav>
-    
     <div class="container">
-        <div class="hero" style="text-align: center; margin-bottom: 3rem;">
-            <div style="font-size: 4rem;">🧠⚡</div>
-            <h1 style="font-size: 2.5rem; background: linear-gradient(135deg, #60a5fa, #a855f7); -webkit-background-clip: text; background-clip: text; color: transparent;">Trinity-Med</h1>
-            <p style="font-size: 1.25rem; color: #94a3b8;">The brain whispers in mathematics before it screams in symptoms.</p>
+        <div class="header">
+            <div class="logo">🧠⚡</div>
+            <h1>Trinity</h1>
+            <div class="tagline">The brain whispers in mathematics before it screams in symptoms.</div>
         </div>
         
-        <div class="stats" style="display: flex; justify-content: center; gap: 2rem; margin: 2rem 0;">
-            <div class="stat" style="text-align: center;"><div style="font-size: 2rem; font-weight: bold; color: #a855f7;">139s</div><div>Avg Warning</div></div>
-            <div class="stat" style="text-align: center;"><div style="font-size: 2rem; font-weight: bold; color: #a855f7;">100%</div><div>Detection Rate</div></div>
-            <div class="stat" style="text-align: center;"><div style="font-size: 2rem; font-weight: bold; color: #a855f7;">26</div><div>Failed Seizures</div></div>
+        <div class="stats">
+            <div class="stat-card"><div class="stat-number">139s</div><div class="stat-label">Average Warning</div></div>
+            <div class="stat-card"><div class="stat-number">100%</div><div class="stat-label">Seizure Detection</div></div>
+            <div class="stat-card"><div class="stat-number">26</div><div class="stat-label">Failed Seizures</div></div>
         </div>
         
-        <div class="card">
-            <h2>🔬 Trinity-Med Tool</h2>
-            <p>Upload an EEG file (.edf) for seizure prediction or failed seizure discovery.</p>
-            <a href="/tool" class="btn" style="display: inline-block; margin-top: 1rem;">Launch Tool →</a>
+        <!-- Mode Selector -->
+        <div class="mode-selector">
+            <div class="mode-btn active" data-mode="quick">⚡ Quick Prediction (v1.2)</div>
+            <div class="mode-btn" data-mode="deep">💚 Deep Dive (v3.1)</div>
+            <div class="mode-btn" data-mode="both">🔬 Both Modes</div>
+        </div>
+        
+        <!-- URL Fetch Section -->
+        <div class="url-section">
+            <div class="section-title">🔗 Fetch from URL</div>
+            <div class="url-input-group">
+                <input type="text" class="url-input" id="urlInput" placeholder="https://physionet.org/files/chbmit/1.0.0/chb02/chb02_30.edf">
+                <input type="text" class="url-input" id="patientIdUrl" placeholder="Patient ID (optional)" style="width: 200px;">
+                <button class="btn" id="fetchBtn">Fetch & Analyze</button>
+            </div>
+            <p style="font-size: 0.75rem; color: #64748b;">Examples: chb02_30.edf, chb01_01.edf, or any public EDF URL</p>
+        </div>
+        
+        <!-- Drag & Drop Section -->
+        <div class="upload-section">
+            <div class="section-title">📁 Upload Local File</div>
+            <div class="drop-zone" id="dropZone">
+                <div style="font-size: 2rem; margin-bottom: 0.5rem;">📂</div>
+                <p>Drag & drop your .edf file here</p>
+                <p style="font-size: 0.75rem; color: #64748b;">or click to browse</p>
+                <input type="file" id="fileInput" accept=".edf" style="display: none;">
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 1rem; align-items: center;">
+                <input type="text" id="patientIdUpload" placeholder="Patient ID (optional)" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.5rem; border-radius: 0.5rem; color: white; width: 200px;">
+                <button class="btn" id="uploadBtn" disabled>Analyze File</button>
+            </div>
+        </div>
+        
+        <!-- Progress -->
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            <p style="text-align: center; margin-top: 0.5rem; font-size: 0.875rem;" id="progressText">Queued...</p>
+        </div>
+        
+        <!-- Results -->
+        <div class="results-card" id="resultsCard">
+            <div class="results-header">
+                <h2 id="resultsTitle">Results</h2>
+            </div>
+            <div id="resultsContent"></div>
+            <div id="timelineChart" class="chart-container" style="display: none;">
+                <canvas id="sdtChart"></canvas>
+            </div>
+            <div id="rawOutput" class="raw-output" style="display: none;"></div>
+            <button class="btn btn-secondary btn-download" id="downloadBtn">📄 Download JSON Report</button>
         </div>
         
         <footer>
-            <p>Trinity-Med is for research purposes. Not FDA approved.</p>
-            <p>CHB-MIT Scalp EEG Database | Open source</p>
+            <p>Trinity v2.0 | Validated on CHB-MIT Scalp EEG Database (PhysioNet)</p>
+            <p>For research use only. Not FDA approved.</p>
         </footer>
     </div>
     
-    <script src="/static/js/app.js"></script>
     <script>
-        function toggleMenu() {
-            const menu = document.getElementById('sideMenu');
-            if (menu) menu.classList.toggle('open');
+        let currentJobId = null;
+        let statusInterval = null;
+        let currentMode = 'quick';
+        let selectedFile = null;
+        let chart = null;
+        
+        // Mode selection
+        document.querySelectorAll('.mode-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                currentMode = btn.dataset.mode;
+            });
+        });
+        
+        // URL Fetch
+        document.getElementById('fetchBtn').addEventListener('click', async () => {
+            const url = document.getElementById('urlInput').value.trim();
+            const patientId = document.getElementById('patientIdUrl').value.trim();
+            
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+            
+            startAnalysis('fetch', { url, patient_id: patientId, mode: currentMode });
+        });
+        
+        // Drag & Drop
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+        
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        fileInput.addEventListener('change', (e) => {
+            selectedFile = e.target.files[0];
+            uploadBtn.disabled = !selectedFile;
+            if (selectedFile) dropZone.style.borderColor = '#60a5fa';
+        });
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            selectedFile = e.dataTransfer.files[0];
+            uploadBtn.disabled = !selectedFile;
+            if (selectedFile) dropZone.style.borderColor = '#60a5fa';
+        });
+        
+        uploadBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+            const patientId = document.getElementById('patientIdUpload').value.trim();
+            startAnalysis('upload', { file: selectedFile, patient_id: patientId, mode: currentMode });
+        });
+        
+        async function startAnalysis(type, data) {
+            // Reset UI
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('resultsCard').style.display = 'none';
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressText').textContent = 'Starting...';
+            
+            if (statusInterval) clearInterval(statusInterval);
+            
+            try {
+                let response;
+                if (type === 'fetch') {
+                    response = await fetch('/fetch', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            url: data.url,
+                            patient_id: data.patient_id,
+                            mode: data.mode
+                        })
+                    });
+                } else {
+                    const formData = new FormData();
+                    formData.append('file', data.file);
+                    formData.append('patient_id', data.patient_id);
+                    formData.append('mode', data.mode);
+                    response = await fetch('/upload', { method: 'POST', body: formData });
+                }
+                
+                const result = await response.json();
+                currentJobId = result.job_id;
+                statusInterval = setInterval(checkStatus, 2000);
+                
+            } catch (err) {
+                console.error(err);
+                alert('Failed to start analysis');
+                resetUI();
+            }
+        }
+        
+        async function checkStatus() {
+            if (!currentJobId) return;
+            
+            try {
+                const res = await fetch(`/status/${currentJobId}`);
+                const data = await res.json();
+                
+                document.getElementById('progressFill').style.width = `${data.progress}%`;
+                document.getElementById('progressText').textContent = `${data.status}... ${data.progress}%`;
+                
+                if (data.status === 'completed') {
+                    clearInterval(statusInterval);
+                    displayResults(data.result);
+                    resetUI();
+                } else if (data.status === 'failed') {
+                    clearInterval(statusInterval);
+                    alert(`Analysis failed: ${data.error || 'Unknown error'}`);
+                    resetUI();
+                }
+                
+            } catch (err) {
+                console.error(err);
+            }
+        }
+        
+        function displayResults(result) {
+            document.getElementById('resultsCard').style.display = 'block';
+            
+            let html = '';
+            
+            if (result.mode === 'quick') {
+                document.getElementById('resultsTitle').innerHTML = '⚡ Seizure Prediction Results (v1.2)';
+                
+                html = `
+                    <div class="metrics-grid">
+                        <div class="metric"><div class="metric-value">${result.seizures_found || 0}</div><div>Seizures Predicted</div></div>
+                        <div class="metric"><div class="metric-value">${result.lead_times?.join(', ') || '—'}</div><div>Lead Times (seconds)</div></div>
+                        <div class="metric"><div class="metric-value">${result.peak_ratios?.[0] || '—'}x</div><div>Peak Ratio</div></div>
+                    </div>
+                `;
+                
+                if (result.has_failed_seizure) {
+                    html += `<div class="failed-badge">💚 Failed seizure detected - brain self-corrected!</div>`;
+                }
+                
+            } else {
+                document.getElementById('resultsTitle').innerHTML = '💚 Deep Dive Results (v3.1)';
+                
+                html = `
+                    <div class="metrics-grid">
+                        <div class="metric failed-badge" style="background: rgba(34,197,94,0.2);"><div class="metric-value">${result.failed_seizures_count || 0}</div><div>Failed Seizures Found</div></div>
+                        <div class="metric"><div class="metric-value">${result.clinical_seizures_count || 0}</div><div>Clinical Seizures</div></div>
+                    </div>
+                    <p><strong>Interpretation:</strong> The brain self-corrected ${result.failed_seizures_count || 0} times. For every clinical seizure, the brain prevented ${Math.round((result.failed_seizures_count || 0) / (result.clinical_seizures_count || 1))} seizures on its own.</p>
+                `;
+            }
+            
+            // Add raw output
+            html += `<details style="margin-top: 1rem;">
+                        <summary style="cursor: pointer; color: #60a5fa;">📜 View Raw Trinity Output</summary>
+                        <pre style="background: #0a0a0a; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-size: 0.7rem; margin-top: 0.5rem;">${escapeHtml(result.raw_output || 'No output captured')}</pre>
+                     </details>`;
+            
+            document.getElementById('resultsContent').innerHTML = html;
+            
+            // Download button
+            document.getElementById('downloadBtn').onclick = () => {
+                window.open(`/download/${currentJobId}`, '_blank');
+            };
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function resetUI() {
+            document.getElementById('uploadBtn').disabled = true;
+            document.getElementById('fetchBtn').disabled = false;
+            selectedFile = null;
+            fileInput.value = '';
+            dropZone.style.borderColor = 'rgba(96,165,250,0.4)';
+            currentJobId = null;
         }
     </script>
 </body>
