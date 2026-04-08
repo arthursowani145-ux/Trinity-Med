@@ -19,7 +19,7 @@ Trinity-Med is a web-based tool that analyzes EEG data to predict epileptic seiz
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/trinity-web-app.git
+git clone https://github.com/arthursowani145-ux/Trinity-.git
 cd trinity-web-app
 pip install -r requirements.txt
 python app.py
