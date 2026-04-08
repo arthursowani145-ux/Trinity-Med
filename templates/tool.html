@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trinity-Med Tool</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="logo">🧠 Trinity-Med Tool</div>
+        <a href="/" style="color: #94a3b8; text-decoration: none;">← Back</a>
+    </nav>
+    
+    <div class="container">
+        <div class="card">
+            <h2>🔬 Upload EEG for Analysis</h2>
+            <p style="margin-bottom: 1rem; color: #94a3b8;">Supported format: .edf (CHB-MIT, up to 500MB)</p>
+            
+            <div style="margin: 1rem 0;">
+                <label><input type="radio" name="mode" value="quick" checked> Quick Prediction (v1.2)</label>
+                <label style="margin-left: 1rem;"><input type="radio" name="mode" value="deep"> Deep Dive (v3.1)</label>
+            </div>
+            
+            <input type="file" id="fileInput" accept=".edf" style="margin: 1rem 0;">
+            <input type="text" id="patientId" placeholder="Patient ID (optional)" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.5rem; border-radius: 0.5rem; color: white; width: 200px;">
+            
+            <div style="margin-top: 1rem;">
+                <button class="btn" id="analyzeBtn" onclick="uploadFile()">Analyze EEG</button>
+                <button class="btn btn-secondary" onclick="clearResults()">Clear</button>
+            </div>
+            
+            <div id="progressContainer" style="display: none; margin-top: 1rem;">
+                <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+                <p style="text-align: center; font-size: 0.875rem;" id="progressText">Queued...</p>
+            </div>
+        </div>
+        
+        <div class="card" id="resultsCard" style="display: none;">
+            <h2 id="resultTitle">Results</h2>
+            <div id="resultsContent" style="display: flex; gap: 1rem; margin: 1rem 0;"></div>
+            <div class="button-group" style="display: flex; gap: 1rem; margin-top: 1rem;">
+                <button class="btn btn-secondary" id="downloadBtn">📄 Download Report</button>
+                <button class="btn btn-secondary" onclick="clearResults()">🗑 New Analysis</button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
