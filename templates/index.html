@@ -2,312 +2,212 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trinity | Seizure Prediction & Discovery</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Trinity | Clinical Seizure Prediction</title>
+    <script src="https://cdn.plot.ly/plotly-3.1.0.min.js" charset="utf-8"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #0a0f1e 0%, #0d1425 100%);
             min-height: 100vh;
             color: #e2e8f0;
-        }
-        
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 3rem;
-        }
-        
-        .logo {
-            font-size: 4rem;
-            margin-bottom: 1rem;
-        }
-        
-        h1 {
-            font-size: 3rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, #60a5fa, #a855f7);
-            -webkit-background-clip: text;
-            background-clip: text;
-            color: transparent;
-        }
-        
-        .tagline {
-            font-size: 1.25rem;
-            color: #94a3b8;
-            margin-top: 0.5rem;
-        }
-        
-        .stats {
-            display: flex;
-            justify-content: center;
-            gap: 2rem;
-            margin-bottom: 3rem;
-            flex-wrap: wrap;
-        }
-        
-        .stat-card {
-            background: rgba(255,255,255,0.05);
-            border-radius: 1rem;
-            padding: 1.5rem;
-            text-align: center;
-            min-width: 150px;
-            backdrop-filter: blur(10px);
-        }
-        
-        .stat-number {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #60a5fa;
-        }
-        
-        .stat-label {
-            font-size: 0.75rem;
-            color: #94a3b8;
-            margin-top: 0.5rem;
-        }
-        
-        .mode-selector {
-            display: flex;
-            justify-content: center;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-        
-        .mode-btn {
-            background: rgba(255,255,255,0.1);
-            border: 1px solid rgba(255,255,255,0.2);
-            padding: 0.75rem 2rem;
-            border-radius: 2rem;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .mode-btn.active {
-            background: linear-gradient(135deg, #60a5fa, #a855f7);
-            border-color: transparent;
-        }
-        
-        .upload-section {
-            background: rgba(255,255,255,0.05);
-            border-radius: 1.5rem;
-            padding: 2rem;
-            margin-bottom: 2rem;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.1);
-        }
-        
-        .section-title {
-            font-size: 1.25rem;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-        
-        .drop-zone {
-            border: 2px dashed rgba(96,165,250,0.4);
-            border-radius: 1rem;
-            padding: 3rem;
-            text-align: center;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-        
-        .drop-zone:hover, .drop-zone.drag-over {
-            border-color: #60a5fa;
-            background: rgba(96,165,250,0.05);
-        }
-        
-        .file-info {
-            margin-top: 1rem;
-            padding: 0.5rem;
-            background: rgba(0,0,0,0.3);
-            border-radius: 0.5rem;
-            display: none;
-        }
-        
-        .progress-container {
-            margin-top: 1rem;
-            display: none;
-        }
-        
-        .progress-bar {
-            height: 8px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #60a5fa, #a855f7);
-            width: 0%;
-            transition: width 0.3s;
-        }
-        
-        .results-card {
-            background: rgba(255,255,255,0.05);
-            border-radius: 1.5rem;
-            padding: 2rem;
-            backdrop-filter: blur(10px);
-            display: none;
-        }
-        
-        .results-header {
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-            padding-bottom: 1rem;
-            margin-bottom: 1rem;
-        }
-        
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-            margin: 1.5rem 0;
-        }
-        
-        .metric {
-            background: rgba(0,0,0,0.3);
             padding: 1rem;
-            border-radius: 0.75rem;
-            text-align: center;
         }
         
-        .metric-value {
-            font-size: 1.5rem;
-            font-weight: 700;
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        .header { text-align: center; margin-bottom: 1.5rem; }
+        .logo { font-size: 2.5rem; margin-bottom: 0.25rem; }
+        h1 { font-size: 1.8rem; background: linear-gradient(135deg, #60a5fa, #a855f7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .tagline { font-size: 0.8rem; color: #94a3b8; }
+        
+        .stats { display: flex; justify-content: center; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .stat-card { background: rgba(255,255,255,0.05); border-radius: 0.75rem; padding: 0.75rem; text-align: center; min-width: 80px; }
+        .stat-number { font-size: 1.2rem; font-weight: 700; color: #60a5fa; }
+        .stat-label { font-size: 0.6rem; color: #94a3b8; }
+        
+        .mode-selector { display: flex; justify-content: center; gap: 0.75rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .mode-btn { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); padding: 0.5rem 1rem; border-radius: 2rem; cursor: pointer; font-size: 0.8rem; }
+        .mode-btn.active { background: linear-gradient(135deg, #60a5fa, #a855f7); border-color: transparent; }
+        
+        .upload-card { background: rgba(255,255,255,0.05); border-radius: 1rem; padding: 1.25rem; margin-bottom: 1.5rem; }
+        
+        .drop-zone { border: 2px dashed rgba(96,165,250,0.4); border-radius: 0.75rem; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.3s; }
+        .drop-zone:hover, .drop-zone.drag-over { border-color: #60a5fa; background: rgba(96,165,250,0.05); }
+        
+        .file-input-btn { 
+            background: linear-gradient(135deg, #60a5fa, #a855f7); 
+            border: none; 
+            color: white; 
+            padding: 0.6rem 1.5rem; 
+            border-radius: 2rem; 
+            font-size: 0.9rem; 
+            font-weight: 600; 
+            cursor: pointer; 
+            margin-top: 1rem;
+            display: inline-block;
         }
         
-        .failed-badge {
-            background: rgba(34,197,94,0.2);
-            border-left: 4px solid #22c55e;
+        .btn { background: linear-gradient(135deg, #60a5fa, #a855f7); border: none; color: white; padding: 0.6rem 1.5rem; border-radius: 2rem; font-size: 0.9rem; font-weight: 600; cursor: pointer; }
+        .btn-secondary { background: rgba(255,255,255,0.1); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .progress-container { margin-top: 1rem; display: none; }
+        .progress-bar { height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #60a5fa, #a855f7); width: 0%; transition: width 0.3s; }
+        
+        .results-card { background: rgba(255,255,255,0.05); border-radius: 1rem; padding: 1.25rem; display: none; }
+        
+        .clinical-graph { 
+            margin: 1rem 0;
+            background: white;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+        }
+        .clinical-graph img {
+            width: 100%;
+            border-radius: 0.25rem;
+        }
+        
+        .clinical-report {
+            background: rgba(0,0,0,0.3);
             padding: 1rem;
             border-radius: 0.5rem;
             margin: 1rem 0;
-        }
-        
-        .btn {
-            background: linear-gradient(135deg, #60a5fa, #a855f7);
-            border: none;
-            color: white;
-            padding: 0.75rem 2rem;
-            border-radius: 2rem;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s;
-            margin-top: 1rem;
-        }
-        
-        .btn:hover {
-            transform: scale(1.02);
-        }
-        
-        .btn-secondary {
-            background: rgba(255,255,255,0.1);
-        }
-        
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
-        .raw-output {
-            background: #0a0a0a;
-            border-radius: 0.5rem;
-            padding: 1rem;
             font-family: monospace;
-            font-size: 0.7rem;
-            overflow-x: auto;
-            max-height: 300px;
-            overflow-y: auto;
+            font-size: 0.8rem;
+            white-space: pre-wrap;
+            line-height: 1.4;
+        }
+        
+        .raw-output { background: #0a0a0a; border-radius: 0.5rem; padding: 0.75rem; font-family: monospace; font-size: 0.6rem; overflow-x: auto; max-height: 200px; margin-top: 1rem; }
+        
+        .folder-selector { 
+            background: rgba(0,0,0,0.3); 
+            border-radius: 0.5rem; 
+            padding: 0.75rem; 
             margin-top: 1rem;
         }
-        
-        footer {
-            text-align: center;
-            color: #475569;
-            font-size: 0.75rem;
-            margin-top: 3rem;
-            padding-top: 2rem;
-            border-top: 1px solid rgba(255,255,255,0.1);
+        .folder-path { 
+            font-family: monospace; 
+            font-size: 0.7rem; 
+            color: #60a5fa; 
+            word-break: break-all;
+            background: rgba(0,0,0,0.3);
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            margin-top: 0.5rem;
         }
         
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+        .tab-bar {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 0.5rem;
+        }
+        .tab {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            border-radius: 0.5rem;
+            font-size: 0.8rem;
+        }
+        .tab.active {
+            background: rgba(96,165,250,0.2);
+            color: #60a5fa;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
         }
         
-        .processing {
-            animation: pulse 1.5s infinite;
-        }
+        footer { text-align: center; color: #475569; font-size: 0.65rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); }
+        
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .processing { animation: pulse 1.5s infinite; }
+        .file-info { margin-top: 0.75rem; padding: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 0.5rem; display: none; font-size: 0.75rem; text-align: center; word-break: break-all; }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div class="logo">🧠⚡</div>
-            <h1>Trinity</h1>
-            <div class="tagline">The brain whispers in mathematics before it screams in symptoms.</div>
+            <h1>Trinity Clinical</h1>
+            <div class="tagline">Seizure risk assessment with clinical visualization</div>
         </div>
         
         <div class="stats">
-            <div class="stat-card"><div class="stat-number">139s</div><div class="stat-label">Average Warning</div></div>
-            <div class="stat-card"><div class="stat-number">100%</div><div class="stat-label">Seizure Detection</div></div>
-            <div class="stat-card"><div class="stat-number">26</div><div class="stat-label">Failed Seizures</div></div>
+            <div class="stat-card"><div class="stat-number">139s</div><div class="stat-label">Avg Warning</div></div>
+            <div class="stat-card"><div class="stat-number">100%</div><div class="stat-label">Detection</div></div>
+            <div class="stat-card"><div class="stat-number">26</div><div class="stat-label">Self-Corrections</div></div>
         </div>
         
         <div class="mode-selector">
-            <div class="mode-btn active" data-mode="quick">⚡ Quick Prediction (v1.2)</div>
-            <div class="mode-btn" data-mode="deep">💚 Deep Dive (v3.1)</div>
+            <div class="mode-btn active" data-mode="quick">⚡ Quick Prediction</div>
+            <div class="mode-btn" data-mode="deep">💚 Deep Dive</div>
         </div>
         
-        <div class="upload-section">
-            <div class="section-title">📁 Upload EEG File</div>
+        <div class="upload-card">
             <div class="drop-zone" id="dropZone">
                 <div style="font-size: 2rem; margin-bottom: 0.5rem;">📂</div>
-                <p>Drag & drop your .edf file here</p>
-                <p style="font-size: 0.75rem; color: #64748b;">or click to browse</p>
-                <input type="file" id="fileInput" accept=".edf" style="display: none;">
+                <p>Tap to select EEG file</p>
+                <p style="font-size: 0.7rem; color: #64748b;">EDF, BDF, GDF, FIF, SET, CNT, NWB, XDF, ZIP</p>
+                <input type="file" id="fileInput" accept=".edf,.bdf,.gdf,.fif,.set,.cnt,.nwb,.xdf,.zip" style="display: none;">
+                <button class="file-input-btn" id="selectFileBtn">📁 Select File</button>
             </div>
+            
+            <div class="folder-selector">
+                <div style="font-size: 0.8rem; margin-bottom: 0.5rem;">📁 Or enter file path manually:</div>
+                <input type="text" id="manualPath" placeholder="/data/data/com.termux/files/home/storage/trinity_data/chb03/chb03_01.edf" 
+                       style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.6rem; border-radius: 0.5rem; color: white; font-size: 0.7rem; font-family: monospace;">
+                <button class="btn btn-secondary" id="loadPathBtn" style="margin-top: 0.5rem; width: 100%;">📂 Load from Path</button>
+            </div>
+            
             <div id="fileInfo" class="file-info"></div>
-            <div style="margin-top: 1rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                <input type="text" id="patientId" placeholder="Patient ID (optional)" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.5rem 1rem; border-radius: 0.5rem; color: white; width: 200px;">
-                <button class="btn" id="analyzeBtn" disabled>Analyze EEG</button>
+            <div style="margin-top: 1rem; display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
+                <input type="text" id="patientId" placeholder="Patient ID" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.5rem; border-radius: 0.5rem; color: white; width: 150px; font-size: 0.8rem;">
+                <button class="btn" id="analyzeBtn" disabled>Analyze</button>
             </div>
         </div>
         
         <div class="progress-container" id="progressContainer">
             <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
-            <p style="text-align: center; margin-top: 0.5rem; font-size: 0.875rem;" id="progressText">Queued...</p>
+            <p style="text-align: center; margin-top: 0.5rem; font-size: 0.8rem;" id="progressText">Queued...</p>
         </div>
         
         <div class="results-card" id="resultsCard">
-            <div class="results-header">
-                <h2 id="resultsTitle">Results</h2>
+            <div class="tab-bar">
+                <div class="tab active" data-tab="graph">📊 Clinical Graph</div>
+                <div class="tab" data-tab="report">📋 Clinical Report</div>
+                <div class="tab" data-tab="raw">💻 Technical Output</div>
             </div>
-            <div id="resultsContent"></div>
-            <div id="rawOutput" class="raw-output" style="display: none;"></div>
-            <button class="btn btn-secondary" id="downloadBtn">📄 Download JSON Report</button>
-            <button class="btn btn-secondary" id="clearBtn" style="margin-left: 0.5rem;">🗑 Clear</button>
+            
+            <div id="tab-graph" class="tab-content active">
+                <div class="clinical-graph" id="clinicalGraph">
+                    <p style="text-align: center; color: #64748b;">Analysis complete. Loading clinical graph...</p>
+                </div>
+            </div>
+            
+            <div id="tab-report" class="tab-content">
+                <div class="clinical-report" id="clinicalReport"></div>
+            </div>
+            
+            <div id="tab-raw" class="tab-content">
+                <pre class="raw-output" id="rawOutput"></pre>
+            </div>
+            
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem; justify-content: center; flex-wrap: wrap;">
+                <button class="btn btn-secondary" id="downloadBtn">📄 Download JSON</button>
+                <button class="btn btn-secondary" id="clearBtn">🗑 Clear</button>
+            </div>
         </div>
         
         <footer>
-            <p>Trinity v2.1 | Validated on CHB-MIT Scalp EEG Database (PhysioNet)</p>
-            <p>Download .edf files from PhysioNet, then upload here for analysis.</p>
-            <p>For research use only. Not FDA approved.</p>
+            <p>Trinity v3.0 | Clinical decision support | Research use only</p>
         </footer>
     </div>
     
@@ -316,6 +216,18 @@
         let statusInterval = null;
         let currentMode = 'quick';
         let selectedFile = null;
+        let isBatch = false;
+        
+        // Tab switching
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabId = tab.dataset.tab;
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(`tab-${tabId}`).classList.add('active');
+            });
+        });
         
         // Mode selection
         document.querySelectorAll('.mode-btn').forEach(btn => {
@@ -326,45 +238,85 @@
             });
         });
         
-        // Drag & Drop
-        const dropZone = document.getElementById('dropZone');
+        // File selection
+        const selectFileBtn = document.getElementById('selectFileBtn');
         const fileInput = document.getElementById('fileInput');
+        const dropZone = document.getElementById('dropZone');
         const analyzeBtn = document.getElementById('analyzeBtn');
         const fileInfo = document.getElementById('fileInfo');
+        const manualPath = document.getElementById('manualPath');
+        const loadPathBtn = document.getElementById('loadPathBtn');
         
+        selectFileBtn.addEventListener('click', () => fileInput.click());
         dropZone.addEventListener('click', () => fileInput.click());
         
         fileInput.addEventListener('change', (e) => {
-            selectedFile = e.target.files[0];
-            updateFileInfo();
+            if (e.target.files && e.target.files[0]) {
+                selectedFile = e.target.files[0];
+                updateFileInfo();
+            }
         });
         
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('drag-over');
-        });
-        
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('drag-over');
-        });
-        
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('drag-over');
-            selectedFile = e.dataTransfer.files[0];
-            updateFileInfo();
+        loadPathBtn.addEventListener('click', async () => {
+            const path = manualPath.value.trim();
+            if (!path) {
+                alert('Please enter a file path');
+                return;
+            }
+            
+            const patientId = document.getElementById('patientId').value.trim();
+            
+            document.getElementById('progressContainer').style.display = 'block';
+            document.getElementById('resultsCard').style.display = 'none';
+            document.getElementById('progressFill').style.width = '0%';
+            document.getElementById('progressText').textContent = 'Loading file from path...';
+            loadPathBtn.disabled = true;
+            loadPathBtn.textContent = 'Loading...';
+            
+            try {
+                const response = await fetch('/analyze_path', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        filepath: path,
+                        mode: currentMode,
+                        patient_id: patientId
+                    })
+                });
+                const data = await response.json();
+                if (data.error) {
+                    alert(data.error);
+                    loadPathBtn.disabled = false;
+                    loadPathBtn.textContent = '📂 Load from Path';
+                    return;
+                }
+                currentJobId = data.job_id;
+                selectedFile = { name: path.split('/').pop() };
+                updateFileInfo();
+                if (statusInterval) clearInterval(statusInterval);
+                statusInterval = setInterval(checkStatus, 2000);
+            } catch (err) {
+                console.error(err);
+                alert('Failed to load file');
+                loadPathBtn.disabled = false;
+                loadPathBtn.textContent = '📂 Load from Path';
+            }
         });
         
         function updateFileInfo() {
             if (selectedFile) {
+                isBatch = selectedFile.name.endsWith('.zip');
+                const typeText = isBatch ? '📦 Batch ZIP' : '📄 EEG';
                 fileInfo.style.display = 'block';
-                fileInfo.innerHTML = `<strong>Selected:</strong> ${selectedFile.name} (${(selectedFile.size / 1024 / 1024).toFixed(2)} MB)`;
+                fileInfo.innerHTML = `<strong>${typeText}:</strong> ${selectedFile.name}`;
                 analyzeBtn.disabled = false;
                 dropZone.style.borderColor = '#60a5fa';
+                analyzeBtn.textContent = isBatch ? '📦 Batch Process' : '🔬 Analyze';
             } else {
                 fileInfo.style.display = 'none';
                 analyzeBtn.disabled = true;
                 dropZone.style.borderColor = 'rgba(96,165,250,0.4)';
+                analyzeBtn.textContent = 'Analyze';
             }
         }
         
@@ -382,13 +334,14 @@
             document.getElementById('progressFill').style.width = '0%';
             document.getElementById('progressText').textContent = 'Uploading...';
             analyzeBtn.disabled = true;
-            analyzeBtn.textContent = 'Uploading...';
+            analyzeBtn.innerHTML = '<span class="processing">⏳ Uploading...</span>';
             
             try {
-                const response = await fetch('/upload', { method: 'POST', body: formData });
+                const endpoint = isBatch ? '/upload_batch' : '/upload';
+                const response = await fetch(endpoint, { method: 'POST', body: formData });
                 const data = await response.json();
                 currentJobId = data.job_id;
-                analyzeBtn.textContent = 'Analyzing...';
+                analyzeBtn.innerHTML = '<span class="processing">🧠 Analyzing...</span>';
                 if (statusInterval) clearInterval(statusInterval);
                 statusInterval = setInterval(checkStatus, 2000);
             } catch (err) {
@@ -400,79 +353,77 @@
         
         async function checkStatus() {
             if (!currentJobId) return;
-            
             try {
                 const res = await fetch(`/status/${currentJobId}`);
                 const data = await res.json();
-                
                 document.getElementById('progressFill').style.width = `${data.progress}%`;
-                document.getElementById('progressText').textContent = `${data.status}... ${data.progress}%`;
-                
+                if (data.batch && data.current_file) {
+                    document.getElementById('progressText').innerHTML = `${data.status}... ${data.progress}%<br>📄 ${data.current_file}`;
+                } else {
+                    document.getElementById('progressText').textContent = `${data.status}... ${data.progress}%`;
+                }
                 if (data.status === 'completed') {
                     clearInterval(statusInterval);
-                    displayResults(data.result);
+                    displayResults(data);
                     resetUI();
                 } else if (data.status === 'failed') {
                     clearInterval(statusInterval);
                     alert(`Analysis failed: ${data.error || 'Unknown error'}`);
                     resetUI();
                 }
-            } catch (err) {
-                console.error(err);
-            }
+            } catch (err) { console.error(err); }
         }
         
-        function displayResults(result) {
+        async function displayResults(data) {
             document.getElementById('resultsCard').style.display = 'block';
             
-            let html = '';
+            // Load clinical graph
+            const graphDiv = document.getElementById('clinicalGraph');
+            graphDiv.innerHTML = '<p style="text-align: center;">Loading clinical graph...</p>';
             
-            if (result.mode === 'quick') {
-                document.getElementById('resultsTitle').innerHTML = '⚡ Seizure Prediction Results (v1.2)';
-                html = `
-                    <div class="metrics-grid">
-                        <div class="metric"><div class="metric-value">${result.seizures_found || 0}</div><div>Seizures Predicted</div></div>
-                        <div class="metric"><div class="metric-value">${result.lead_times?.join(', ') || '—'}</div><div>Lead Times (seconds)</div></div>
-                        <div class="metric"><div class="metric-value">${result.peak_ratios?.[0] || '—'}x</div><div>Peak Ratio</div></div>
-                    </div>
-                `;
-            } else {
-                document.getElementById('resultsTitle').innerHTML = '💚 Deep Dive Results (v3.1)';
-                const ratio = result.clinical_seizures_count > 0 ? 
-                    (result.failed_seizures_count / result.clinical_seizures_count).toFixed(1) : 
-                    result.failed_seizures_count;
-                html = `
-                    <div class="metrics-grid">
-                        <div class="metric failed-badge" style="background: rgba(34,197,94,0.2);"><div class="metric-value">${result.failed_seizures_count || 0}</div><div>Failed Seizures Found</div></div>
-                        <div class="metric"><div class="metric-value">${result.clinical_seizures_count || 0}</div><div>Clinical Seizures</div></div>
-                    </div>
-                    <p><strong>Interpretation:</strong> The brain self-corrected ${result.failed_seizures_count || 0} times. Self-correction ratio: ${ratio}:1</p>
-                `;
+            try {
+                const img = document.createElement('img');
+                img.src = `/clinical_graph/${currentJobId}?t=${Date.now()}`;
+                img.style.width = '100%';
+                img.style.borderRadius = '0.5rem';
+                img.onload = () => {
+                    graphDiv.innerHTML = '';
+                    graphDiv.appendChild(img);
+                };
+                img.onerror = () => {
+                    graphDiv.innerHTML = '<p style="text-align: center; color: #e74c3c;">⚠️ Graph not available for this analysis</p>';
+                };
+            } catch (err) {
+                graphDiv.innerHTML = '<p style="text-align: center; color: #e74c3c;">⚠️ Graph generation failed</p>';
             }
             
-            html += `<details style="margin-top: 1rem;">
-                        <summary style="cursor: pointer; color: #60a5fa;">📜 View Raw Trinity Output</summary>
-                        <pre style="background: #0a0a0a; padding: 1rem; border-radius: 0.5rem; overflow-x: auto; font-size: 0.7rem; margin-top: 0.5rem;">${escapeHtml(result.raw_output || 'No output captured')}</pre>
-                     </details>`;
+            // Load clinical report
+            try {
+                const reportRes = await fetch(`/clinical_report_text/${currentJobId}`);
+                const reportData = await reportRes.json();
+                document.getElementById('clinicalReport').innerHTML = `<pre style="white-space: pre-wrap; font-family: monospace; font-size: 0.8rem;">${escapeHtml(reportData.report)}</pre>`;
+            } catch (err) {
+                document.getElementById('clinicalReport').innerHTML = '<p>Report not available</p>';
+            }
             
-            document.getElementById('resultsContent').innerHTML = html;
+            // Load raw output
+            if (data.result && data.result.raw_output) {
+                document.getElementById('rawOutput').textContent = data.result.raw_output;
+            } else if (data.results) {
+                let raw = '';
+                for (const r of data.results.slice(0, 5)) {
+                    if (r.result && r.result.raw_output) {
+                        raw += `=== ${r.file} ===\n${r.result.raw_output.substring(0, 500)}...\n\n`;
+                    }
+                }
+                document.getElementById('rawOutput').textContent = raw || 'Raw output not available';
+            }
             
-            document.getElementById('downloadBtn').onclick = () => {
-                window.open(`/download/${currentJobId}`, '_blank');
-            };
+            document.getElementById('downloadBtn').onclick = () => window.open(`/download/${currentJobId}`, '_blank');
         }
         
-        document.getElementById('clearBtn')?.addEventListener('click', () => {
-            document.getElementById('resultsCard').style.display = 'none';
-            document.getElementById('progressContainer').style.display = 'none';
-            selectedFile = null;
-            fileInput.value = '';
-            updateFileInfo();
-            if (statusInterval) clearInterval(statusInterval);
-            currentJobId = null;
-        });
-        
         function escapeHtml(text) {
+            if (!text) return '';
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
@@ -480,8 +431,27 @@
         
         function resetUI() {
             analyzeBtn.disabled = false;
-            analyzeBtn.textContent = 'Analyze EEG';
+            analyzeBtn.innerHTML = 'Analyze';
+            loadPathBtn.disabled = false;
+            loadPathBtn.textContent = '📂 Load from Path';
+            currentJobId = null;
         }
+        
+        document.getElementById('clearBtn')?.addEventListener('click', () => {
+            document.getElementById('resultsCard').style.display = 'none';
+            document.getElementById('progressContainer').style.display = 'none';
+            if (statusInterval) clearInterval(statusInterval);
+            currentJobId = null;
+            selectedFile = null;
+            fileInput.value = '';
+            manualPath.value = '';
+            fileInfo.style.display = 'none';
+            analyzeBtn.disabled = true;
+            dropZone.style.borderColor = 'rgba(96,165,250,0.4)';
+        });
+        
+        // Pre-fill suggested path
+        manualPath.value = '/data/data/com.termux/files/home/storage/trinity_data/chb03/chb03_01.edf';
     </script>
 </body>
 </html>
