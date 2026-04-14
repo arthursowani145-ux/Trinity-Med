@@ -167,6 +167,12 @@
                 <button class="btn btn-secondary" id="loadPathBtn" style="margin-top: 0.5rem; width: 100%;">📂 Load from Path</button>
             </div>
             
+            <div class="folder-selector" style="margin-top: 0.75rem;">
+                <div style="font-size: 0.8rem; margin-bottom: 0.5rem;">🌐 Or fetch from URL:</div>
+                <input type="text" id="urlInput" placeholder="https://physionet.org/files/chbmit/1.0.0/chb03/chb03_01.edf"
+                       style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.6rem; border-radius: 0.5rem; color: white; font-size: 0.7rem; font-family: monospace;">
+                <button class="btn btn-secondary" id="fetchUrlBtn" style="margin-top: 0.5rem; width: 100%;">🌐 Fetch from URL</button>
+            </div>
             <div id="fileInfo" class="file-info"></div>
             <div style="margin-top: 1rem; display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap;">
                 <input type="text" id="patientId" placeholder="Patient ID" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.5rem; border-radius: 0.5rem; color: white; width: 150px; font-size: 0.8rem;">
@@ -457,12 +463,6 @@
 </html>
 <!-- URL Input Section -->
 <div class="upload-card" style="margin-top: 1rem;">
-    <div class="panel-title">🔗 Or fetch from URL</div>
-    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-        <input type="text" id="urlInput" placeholder="https://physionet.org/files/chbmit/1.0.0/chb03/chb03_01.edf" 
-               style="flex: 1; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); padding: 0.6rem; border-radius: 0.5rem; color: white; font-size: 0.7rem; font-family: monospace;">
-        <button class="btn btn-secondary" id="fetchUrlBtn">🌐 Fetch from URL</button>
-    </div>
     <div class="supported-badge" style="margin-top: 0.5rem;">
         Supports: PhysioNet, GIN, Zenodo, or any direct EDF/BDF/GDF URL
     </div>
