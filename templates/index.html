@@ -739,6 +739,7 @@
                 </div>
 
                 <div class="action-bar">
+                    <button class="action-btn" id="simulateBtn" style="display:none;">▶ SIMULATE</button>
                     <button class="action-btn" id="saveResultBtn" style="display:none;">SAVE</button>
                     <button class="action-btn" id="viewHistoryBtn">HISTORY</button>
                     <button class="action-btn" id="downloadBtn">EXPORT JSON</button>
@@ -935,6 +936,7 @@
         async function displayResults(data) {
             document.getElementById('resultsCard').style.display = 'block';
             document.getElementById('saveResultBtn').style.display = 'inline-block';
+            document.getElementById('simulateBtn').style.display = 'inline-block';
 
             // Clinical graph
             const graphDiv = document.getElementById('clinicalGraph');
@@ -978,14 +980,37 @@
             analyzeBtn.disabled = true;
         });
 
-        // Save result
+        // Simulate button - launch live monitor
+        document.getElementById('simulateBtn').addEventListener('click', () => {
+            if (currentJobId) {
+                window.open(`/simulator?job=${currentJobId}`, '_blank');
+            }
+        });
+
+        // Save result with graph support
         document.getElementById('saveResultBtn').addEventListener('click', async () => {
             if (!currentJobId) return;
             try {
                 const res = await fetch(`/save_result/${currentJobId}`, { method: 'POST' });
                 const data = await res.json();
-                alert(data.success ? 'Result saved.' : 'Save failed.');
-            } catch { alert('Save failed.'); }
+                if (data.success) {
+                    let msg = `✓ Saved: ${data.filename}`;
+                    if (data.graph_filename) {
+                        msg += `\n✓ Graph: ${data.graph_filename}`;
+                        if (confirm(`${msg}\n\nDownload graph image now?`)) {
+                            window.open(`/download_saved_graph/${data.graph_filename}`, '_blank');
+                        } else {
+                            alert(msg);
+                        }
+                    } else {
+                        alert(msg);
+                    }
+                } else {
+                    alert('✗ Save failed.');
+                }
+            } catch (err) { 
+                alert('✗ Save failed: ' + err.message); 
+            }
         });
 
         // History
@@ -1004,8 +1029,9 @@
                             <span>${escapeHtml(r.filename)}</span>
                             <span style="color:#333;">${new Date(r.modified).toLocaleString()}</span>
                             <span>
-                                <a href="${r.url}" download style="color:#555;margin-right:1rem;">DOWNLOAD</a>
-                                <button onclick="deleteResult('${r.filename}')" style="background:none;border:none;color:#ff3333;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:0.6rem;">DELETE</button>
+                                <a href="${r.url}" download style="color:#555;margin-right:1rem;">📄 JSON</a>
+                                ${r.has_graph ? `<a href="${r.graph_url}" download style="color:#555;margin-right:1rem;">📊 PNG</a>` : ''}
+                                <button onclick="deleteResult('${r.filename}')" style="background:none;border:none;color:#ff3333;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:0.6rem;">🗑 DELETE</button>
                             </span>
                         </div>`).join('');
                 }
