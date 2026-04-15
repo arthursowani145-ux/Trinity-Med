@@ -1,10 +1,7 @@
-import os
 #!/usr/bin/env python3
 """
 Trinity Web App v3.0 - CLINICAL EDITION
-- Drag & drop upload
-- Interactive clinical visualizations
-- Professional reports in browser
+Clean version - all routes properly defined
 """
 
 import os
@@ -14,12 +11,13 @@ import subprocess
 import re
 import zipfile
 import base64
+import threading
+import requests
 from datetime import datetime
 from pathlib import Path
 from flask import Flask, request, jsonify, render_template, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
-import threading
 import plotly.graph_objs as go
 import plotly.utils
 import numpy as np
@@ -27,6 +25,7 @@ import numpy as np
 app = Flask(__name__)
 CORS(app)
 
+# Configuration
 BASE_DIR = Path(__file__).parent.resolve()
 UPLOAD_FOLDER = BASE_DIR / 'uploads'
 RESULTS_FOLDER = BASE_DIR / 'results'
@@ -53,9 +52,7 @@ def allowed_file(filename):
     return ext in ALLOWED_EXTENSIONS
 
 def parse_trinity_output(output, mode):
-    """Parse Trinity output and extract metrics"""
     result = {'success': True, 'mode': mode, 'raw_output': output[-3000:] if len(output) > 3000 else output}
-    
     if mode == 'quick':
         lead_times = re.findall(r'Lead:\s*(\d+)s', output)
         peak_ratios = re.findall(r'Peak:\s*([\d,]+\.?\d*)x', output)
@@ -69,155 +66,13 @@ def parse_trinity_output(output, mode):
         result['failed_seizures_count'] = int(failed_matches[0]) if failed_matches else 0
         clinical_matches = re.findall(r'CLINICAL SEIZURES?:?\s*(\d+)', output)
         result['clinical_seizures_count'] = int(clinical_matches[0]) if clinical_matches else 0
-    
-    # Extract timeline for visualization
-    timeline = []
-    lines = output.split('\n')
-    in_timeline = False
-    for line in lines:
-        if 'Time     S        D        T' in line:
-            in_timeline = True
-            continue
-        if in_timeline and line.strip() and '─' not in line and 'SEIZURE' not in line:
-            parts = line.split()
-            if len(parts) >= 6:
-                try:
-                    timeline.append({
-                        'time': float(parts[0]),
-                        'S': float(parts[1]),
-                        'D': float(parts[2]),
-                        'T': float(parts[3]),
-                        'risk': float(parts[4].replace('%', '')) / 100 if '%' in parts[4] else 0
-                    })
-                except:
-                    pass
-        if 'SEIZURE AT' in line:
-            in_timeline = False
-    
-    result['timeline'] = timeline[:50]  # Limit for performance
     return result
-
-def generate_clinical_charts(timeline, result):
-    """Generate Plotly charts for clinical display"""
-    charts = {}
-    
-    if timeline and len(timeline) > 0:
-        times = [t['time'] for t in timeline]
-        
-        # Risk trajectory chart
-        risk_fig = go.Figure()
-        risk_fig.add_trace(go.Scatter(
-            x=times, y=[t['risk'] for t in timeline],
-            mode='lines', name='Risk Level',
-            line=dict(color='#ef4444', width=2),
-            fill='tozeroy', fillcolor='rgba(239,68,68,0.2)'
-        ))
-        risk_fig.update_layout(
-            title='Seizure Risk Trajectory',
-            xaxis_title='Time (seconds)',
-            yaxis_title='Risk Level',
-            template='plotly_dark',
-            height=300,
-            margin=dict(l=40, r=40, t=40, b=40)
-        )
-        charts['risk_chart'] = json.dumps(risk_fig, cls=plotly.utils.PlotlyJSONEncoder)
-        
-        # S-D-T components chart
-        sdt_fig = go.Figure()
-        sdt_fig.add_trace(go.Scatter(x=times, y=[t['S'] for t in timeline], mode='lines', name='S (Background)', line=dict(color='#60a5fa')))
-        sdt_fig.add_trace(go.Scatter(x=times, y=[t['D'] for t in timeline], mode='lines', name='D (Evolution)', line=dict(color='#f59e0b')))
-        sdt_fig.add_trace(go.Scatter(x=times, y=[t['T'] for t in timeline], mode='lines', name='T (Coupling)', line=dict(color='#22c55e')))
-        sdt_fig.update_layout(
-            title='S-D-T Component Dynamics',
-            xaxis_title='Time (seconds)',
-            yaxis_title='Normalized Value',
-            template='plotly_dark',
-            height=300,
-            margin=dict(l=40, r=40, t=40, b=40)
-        )
-        charts['sdt_chart'] = json.dumps(sdt_fig, cls=plotly.utils.PlotlyJSONEncoder)
-    
-    # Risk gauge (for quick mode)
-    if result.get('seizures_found', 0) > 0:
-        risk_level = min(100, int(result.get('peak_ratios', [0])[0]) // 100) if result.get('peak_ratios') else 0
-    else:
-        risk_level = result.get('failed_seizures_count', 0) * 5 if result.get('failed_seizures_count', 0) > 0 else 5
-    
-    gauge_fig = go.Figure(go.Indicator(
-        mode="gauge+number+delta",
-        value=risk_level,
-        title={'text': "Clinical Risk Index"},
-        domain={'x': [0, 1], 'y': [0, 1]},
-        gauge={
-            'axis': {'range': [0, 100], 'tickwidth': 1},
-            'bar': {'color': "#a855f7"},
-            'steps': [
-                {'range': [0, 20], 'color': "rgba(34,197,94,0.3)"},
-                {'range': [20, 50], 'color': "rgba(234,179,8,0.3)"},
-                {'range': [50, 80], 'color': "rgba(245,158,11,0.3)"},
-                {'range': [80, 100], 'color': "rgba(239,68,68,0.3)"}
-            ],
-            'threshold': {
-                'line': {'color': "red", 'width': 4},
-                'thickness': 0.75,
-                'value': risk_level
-            }
-        }
-    ))
-    gauge_fig.update_layout(height=250, margin=dict(l=40, r=40, t=40, b=40))
-    charts['gauge_chart'] = json.dumps(gauge_fig, cls=plotly.utils.PlotlyJSONEncoder)
-    
-    return charts
-
-def generate_clinical_report_html(result, charts):
-    """Generate HTML clinical report"""
-    if result['mode'] == 'quick':
-        severity = "HIGH" if result.get('seizures_found', 0) > 0 else "LOW"
-        severity_color = "#ef4444" if severity == "HIGH" else "#22c55e"
-        clinical_text = f"""
-        <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-            <h4 style="color: #60a5fa;">Clinical Interpretation</h4>
-            <p><strong>Seizure Risk:</strong> <span style="color: {severity_color};">{severity}</span></p>
-            <p><strong>Seizures Predicted:</strong> {result.get('seizures_found', 0)}</p>
-            <p><strong>Lead Times:</strong> {', '.join(result.get('lead_times', []))} seconds</p>
-            <p><strong>Peak Emergence Ratio:</strong> {result.get('peak_ratios', ['—'])[0]}x baseline</p>
-            <hr style="border-color: rgba(255,255,255,0.1); margin: 0.5rem 0;">
-            <p><strong>Recommendation:</strong> {("IMMEDIATE ATTENTION - Seizure imminent" if result.get('seizures_found', 0) > 0 else "Continue routine monitoring")}</p>
-        </div>
-        """
-    else:
-        ratio = result.get('failed_seizures_count', 0) / max(1, result.get('clinical_seizures_count', 1))
-        clinical_text = f"""
-        <div style="background: rgba(0,0,0,0.3); padding: 1rem; border-radius: 0.5rem; margin-bottom: 1rem;">
-            <h4 style="color: #60a5fa;">Clinical Interpretation</h4>
-            <p><strong>Self-Correction Ratio:</strong> {ratio:.1f}:1 (failed:clinical)</p>
-            <p><strong>Failed Seizures (Self-Corrected):</strong> <span style="color: #22c55e;">{result.get('failed_seizures_count', 0)}</span></p>
-            <p><strong>Clinical Seizures:</strong> <span style="color: #ef4444;">{result.get('clinical_seizures_count', 0)}</span></p>
-            <hr style="border-color: rgba(255,255,255,0.1); margin: 0.5rem 0;">
-            <p><strong>Interpretation:</strong> The brain successfully self-corrected {result.get('failed_seizures_count', 0)} times. For every clinical seizure, the brain prevented {ratio:.0f} seizures on its own.</p>
-            <p><strong>Recommendation:</strong> Reinforce natural self-correction mechanisms through closed-loop neuromodulation.</p>
-        </div>
-        """
-    
-    return clinical_text
-
-def _find_trinity_json(patient_id, base_dir):
-    import glob, os
-    files = glob.glob(str(base_dir / f"trinity_{patient_id}_*.json"))
-    if not files:
-        files = glob.glob(str(base_dir / "trinity_*.json"))
-    return max(files, key=os.path.getmtime) if files else None
 
 def run_trinity_quick(filepath, patient_id):
     try:
         cmd = ['python', str(TRINITY_QUICK), '--path', str(filepath.parent), '--patient', patient_id]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, cwd=str(BASE_DIR))
-        parsed = parse_trinity_output(result.stdout, 'quick')
-        json_path = _find_trinity_json(patient_id, BASE_DIR)
-        if json_path:
-            with open(json_path) as jf:
-                parsed['trinity_json'] = json.load(jf)
-        return parsed
+        return parse_trinity_output(result.stdout, 'quick')
     except Exception as e:
         return {'success': False, 'error': str(e), 'mode': 'quick'}
 
@@ -225,12 +80,7 @@ def run_trinity_deep(filepath, patient_id):
     try:
         cmd = ['python', str(TRINITY_DEEP), '--path', str(filepath.parent), '--patient', patient_id]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=600, cwd=str(BASE_DIR))
-        parsed = parse_trinity_output(result.stdout, 'deep')
-        json_path = _find_trinity_json(patient_id, BASE_DIR)
-        if json_path:
-            with open(json_path) as jf:
-                parsed['trinity_json'] = json.load(jf)
-        return parsed
+        return parse_trinity_output(result.stdout, 'deep')
     except Exception as e:
         return {'success': False, 'error': str(e), 'mode': 'deep'}
 
@@ -242,29 +92,16 @@ def index():
 def upload_file():
     if 'file' not in request.files:
         return jsonify({'error': 'No file provided'}), 400
-    
     file = request.files['file']
     if file.filename == '':
         return jsonify({'error': 'No file selected'}), 400
-    
     mode = request.form.get('mode', 'quick')
     patient_id = request.form.get('patient_id', 'upload')
     job_id = str(uuid.uuid4())[:12]
-    
     filename = secure_filename(file.filename)
     filepath = UPLOAD_FOLDER / f"{job_id}_{filename}"
     file.save(filepath)
-    
-    jobs[job_id] = {
-        'id': job_id,
-        'status': 'analyzing',
-        'progress': 30,
-        'mode': mode,
-        'filename': filename,
-        'patient_id': patient_id,
-        'created_at': datetime.now().isoformat()
-    }
-    
+    jobs[job_id] = {'id': job_id, 'status': 'analyzing', 'progress': 30, 'mode': mode, 'filename': filename, 'patient_id': patient_id}
     def analyze():
         try:
             jobs[job_id]['progress'] = 50
@@ -272,16 +109,8 @@ def upload_file():
                 result = run_trinity_quick(filepath, patient_id)
             else:
                 result = run_trinity_deep(filepath, patient_id)
-            
             if result.get('success', False):
-                # Generate clinical visualizations
-                timeline = result.get('timeline', [])
-                charts = generate_clinical_charts(timeline, result)
-                clinical_report = generate_clinical_report_html(result, charts)
-                
                 jobs[job_id]['result'] = result
-                jobs[job_id]['charts'] = charts
-                jobs[job_id]['clinical_report'] = clinical_report
                 jobs[job_id]['status'] = 'completed'
                 jobs[job_id]['progress'] = 100
             else:
@@ -295,381 +124,86 @@ def upload_file():
                 filepath.unlink()
             except:
                 pass
-    
-    thread = threading.Thread(target=analyze)
-    thread.start()
-    
+    threading.Thread(target=analyze).start()
     return jsonify({'job_id': job_id})
 
-@app.route('/upload_batch', methods=['POST'])
-def upload_batch():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    if file.filename == '':
-        return jsonify({'error': 'No file selected'}), 400
-    
-    if not file.filename.endswith('.zip'):
-        return jsonify({'error': 'Only .zip files are supported for batch processing'}), 400
-    
-    mode = request.form.get('mode', 'quick')
-    patient_id = request.form.get('patient_id', 'batch')
+@app.route('/analyze_url', methods=['POST'])
+def analyze_url():
+    data = request.get_json()
+    file_url = data.get('url')
+    mode = data.get('mode', 'quick')
+    patient_id = data.get('patient_id', 'remote')
+    if not file_url:
+        return jsonify({'error': 'No URL provided'}), 400
     job_id = str(uuid.uuid4())[:12]
-    
-    zip_filename = secure_filename(file.filename)
-    zip_path = UPLOAD_FOLDER / f"{job_id}_{zip_filename}"
-    file.save(zip_path)
-    
-    extract_dir = UPLOAD_FOLDER / f"{job_id}_extracted"
-    extract_dir.mkdir(exist_ok=True)
-    
-    with zipfile.ZipFile(zip_path, 'r') as zf:
-        zf.extractall(extract_dir)
-    
-    edf_files = []
-    for ext in ALLOWED_EXTENSIONS:
-        edf_files.extend(extract_dir.glob(f'*{ext}'))
-        edf_files.extend(extract_dir.glob(f'*{ext.upper()}'))
-    edf_files = sorted(set(edf_files))
-    
-    jobs[job_id] = {
-        'id': job_id,
-        'status': 'analyzing',
-        'progress': 0,
-        'mode': mode,
-        'batch': True,
-        'total_files': len(edf_files),
-        'files': [str(f) for f in edf_files],
-        'patient_id': patient_id,
-        'created_at': datetime.now().isoformat(),
-        'results': []
-    }
-    
-    def analyze_batch():
-        results = []
-        for i, filepath in enumerate(edf_files):
-            jobs[job_id]['progress'] = int((i / len(edf_files)) * 100)
-            jobs[job_id]['current_file'] = filepath.name
-            
+    filename = file_url.split('/')[-1].split('?')[0] or 'file.edf'
+    jobs[job_id] = {'id': job_id, 'status': 'downloading', 'progress': 10, 'mode': mode, 'filename': filename, 'patient_id': patient_id}
+    def download_and_analyze():
+        filepath = None
+        try:
+            response = requests.get(file_url, timeout=300, stream=True)
+            response.raise_for_status()
+            filepath = UPLOAD_FOLDER / f"{job_id}_{filename}"
+            with open(filepath, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            jobs[job_id]['progress'] = 50
             if mode == 'quick':
                 result = run_trinity_quick(filepath, patient_id)
             else:
                 result = run_trinity_deep(filepath, patient_id)
-            
-            results.append({'file': filepath.name, 'result': result})
-            jobs[job_id]['results'] = results
-        
-        jobs[job_id]['status'] = 'completed'
-        jobs[job_id]['progress'] = 100
-        
-        try:
-            zip_path.unlink()
-            import shutil
-            shutil.rmtree(extract_dir)
-        except:
-            pass
-    
-    thread = threading.Thread(target=analyze_batch)
-    thread.start()
-    
-    return jsonify({'job_id': job_id, 'total_files': len(edf_files)})
+            if result.get('success', False):
+                jobs[job_id]['result'] = result
+                jobs[job_id]['status'] = 'completed'
+                jobs[job_id]['progress'] = 100
+            else:
+                jobs[job_id]['status'] = 'failed'
+                jobs[job_id]['error'] = result.get('error', 'Analysis failed')
+        except Exception as e:
+            jobs[job_id]['status'] = 'failed'
+            jobs[job_id]['error'] = str(e)
+        finally:
+            if filepath and filepath.exists():
+                filepath.unlink()
+    threading.Thread(target=download_and_analyze).start()
+    return jsonify({'job_id': job_id})
 
 @app.route('/status/<job_id>')
 def status(job_id):
     if job_id not in jobs:
         return jsonify({'error': 'Job not found'}), 404
-    
     job = jobs[job_id]
-    response = {
-        'status': job['status'],
-        'progress': job.get('progress', 0),
-        'mode': job.get('mode', 'quick'),
-        'batch': job.get('batch', False)
-    }
-    
-    if job.get('batch'):
-        response['total_files'] = job.get('total_files', 0)
-        response['current_file'] = job.get('current_file', '')
-        if job['status'] == 'completed':
-            response['results'] = job.get('results', [])
-    else:
-        if job['status'] == 'completed':
-            response['result'] = job.get('result')
-            response['charts'] = job.get('charts', {})
-            response['clinical_report'] = job.get('clinical_report', '')
-    
+    response = {'status': job['status'], 'progress': job.get('progress', 0), 'mode': job.get('mode', 'quick')}
+    if job['status'] == 'completed':
+        response['result'] = job.get('result')
     if job['status'] == 'failed':
         response['error'] = job.get('error')
-    
     return jsonify(response)
 
 @app.route('/download/<job_id>')
 def download(job_id):
     if job_id not in jobs:
         return "Job not found", 404
-    
     job = jobs[job_id]
     result_file = RESULTS_FOLDER / f"{job_id}_results.json"
-    
     with open(result_file, 'w') as f:
-        json.dump(job.get('result', job.get('results', {})), f, indent=2)
-    
+        json.dump(job.get('result', {}), f, indent=2)
     return send_file(result_file, as_attachment=True, download_name=f"trinity_{job_id}.json")
 
-# main block moved to end of file
+@app.route('/simulator')
+def simulator():
+    return render_template('simulator.html')
 
-@app.route('/analyze_path', methods=['POST'])
-def analyze_path():
-    """Analyze file from local path (for manual entry)"""
-    data = request.get_json()
-    filepath = data.get('filepath')
-    mode = data.get('mode', 'quick')
-    patient_id = data.get('patient_id', 'local')
-    
-    if not filepath:
-        return jsonify({'error': 'No file path provided'}), 400
-    
-    path = Path(filepath)
-    if not path.exists():
-        return jsonify({'error': f'File not found: {filepath}'}), 404
-    
-    if not allowed_file(path.name):
-        return jsonify({'error': f'Unsupported format. Allowed: {", ".join(ALLOWED_EXTENSIONS)}'}), 400
-    
-    job_id = str(uuid.uuid4())[:12]
-    
-    jobs[job_id] = {
-        'id': job_id,
-        'status': 'analyzing',
-        'progress': 30,
-        'mode': mode,
-        'filename': path.name,
-        'filepath': str(path),
-        'patient_id': patient_id,
-        'created_at': datetime.now().isoformat()
-    }
-    
-    def analyze():
-        try:
-            jobs[job_id]['progress'] = 50
-            if mode == 'quick':
-                result = run_trinity_quick(path, patient_id)
-            else:
-                result = run_trinity_deep(path, patient_id)
-            
-            if result.get('success', False):
-                timeline = result.get('timeline', [])
-                charts = generate_clinical_charts(timeline, result)
-                clinical_report = generate_clinical_report_html(result, charts)
-                
-                jobs[job_id]['result'] = result
-                jobs[job_id]['charts'] = charts
-                jobs[job_id]['clinical_report'] = clinical_report
-                jobs[job_id]['status'] = 'completed'
-                jobs[job_id]['progress'] = 100
-            else:
-                jobs[job_id]['status'] = 'failed'
-                jobs[job_id]['error'] = result.get('error', 'Analysis failed')
-        except Exception as e:
-            jobs[job_id]['status'] = 'failed'
-            jobs[job_id]['error'] = str(e)
-    
-    thread = threading.Thread(target=analyze)
-    thread.start()
-    
-    return jsonify({'job_id': job_id})
-
-@app.route('/clinical_graph/<job_id>')
-def clinical_graph(job_id):
-    """Generate and return clinical graph as PNG"""
-    if job_id not in jobs:
-        return "Job not found", 404
-    
-    job = jobs[job_id]
-    if job['status'] != 'completed':
-        return "Analysis not complete", 400
-    
-    # Import graph generator
-    import sys
-    sys.path.insert(0, str(BASE_DIR / 'tools'))
-    from trinity_clinical_graphs import generate_single_file_figure, generate_batch_overview
-    
-    # Create temp file for graph
-    graph_path = RESULTS_FOLDER / f"{job_id}_clinical.png"
-    
-    if job.get('batch'):
-        # Batch overview
-        generate_batch_overview(job.get('results', []), None, str(graph_path))
-    else:
-        # Single file
-        result = job.get('result', {})
-        timeline = result.get('timeline', [])
-        if timeline:
-            # Create fake result dict for graph
-            graph_result = {
-                'file': job.get('filename', 'unknown'),
-                'timeline': timeline,
-                'seizure_at_sec': result.get('seizure_at_sec'),
-                'peak_ratio': result.get('peak_ratio')
-            }
-            generate_single_file_figure(graph_result, str(graph_path))
-        else:
-            return "No timeline data for graph", 404
-    
-    return send_file(graph_path, mimetype='image/png')
-
-@app.route('/clinical_report_text/<job_id>')
-def clinical_report_text(job_id):
-    """Generate clinical text report"""
-    if job_id not in jobs:
-        return "Job not found", 404
-    
-    job = jobs[job_id]
-    if job['status'] != 'completed':
-        return "Analysis not complete", 400
-    
-    # Import clinical translator
-    import sys
-    sys.path.insert(0, str(BASE_DIR / 'tools'))
-    from trinity_clinical_translator_v21 import ClinicalReportGenerator
-    
-    if job.get('batch'):
-        first = job.get('results', [{}])[0].get('result', {})
-        trinity_json = first.get('trinity_json', [{}])
-        item = trinity_json[0] if isinstance(trinity_json, list) else trinity_json
-        report = ClinicalReportGenerator.generate_clinical_summary(item)
-    else:
-        result = job.get('result', {})
-        trinity_json = result.get('trinity_json')
-        if trinity_json:
-            item = trinity_json[0] if isinstance(trinity_json, list) else trinity_json
-        else:
-            item = result
-            item['file'] = job.get('filename', 'unknown')
-        report = ClinicalReportGenerator.generate_clinical_summary(item)
-    
-    return jsonify({'report': report})
-
-@app.route('/debug/<job_id>')
-def debug_job(job_id):
-    if job_id not in jobs:
-        return jsonify({'error': 'not found'}), 404
-    job = jobs[job_id]
-    result = job.get('result', {})
-    return jsonify({
-        'result_keys': list(result.keys()),
-        'has_trinity_json': 'trinity_json' in result,
-        'trinity_json_type': type(result.get('trinity_json')).__name__,
-        'trinity_json_len': len(result.get('trinity_json', [])) if isinstance(result.get('trinity_json'), list) else 'n/a',
-        'status': job.get('status'),
-    })
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     print("🧠 Trinity Web App v3.0 - CLINICAL EDITION")
     print("=" * 60)
     print("URL: http://localhost:5000")
     print("=" * 60)
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)), debug=False)
 
-@app.route('/analyze_url', methods=['POST'])
-def analyze_url():
-    """Download file from URL and analyze (supports EDF, BDF, GDF, BrainVision, etc.)"""
-    data = request.get_json()
-    file_url = data.get('url')
-    mode = data.get('mode', 'quick')
-    patient_id = data.get('patient_id', 'remote')
-
-    if not file_url:
-        return jsonify({'error': 'No URL provided'}), 400
-
-    job_id = str(uuid.uuid4())[:12]
-    filename = file_url.split('/')[-1].split('?')[0] or 'file.edf'
-
-    jobs[job_id] = {
-        'id': job_id,
-        'status': 'downloading',
-        'progress': 10,
-        'mode': mode,
-        'filename': filename,
-        'patient_id': patient_id,
-        'url': file_url,
-        'created_at': datetime.now().isoformat()
-    }
-
-    def download_and_analyze():
-        filepath = None
-        try:
-            jobs[job_id]['progress'] = 20
-            
-            # Download file with proper headers
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (compatible; Trinity-Bot/1.0)',
-                'Accept': '*/*'
-            }
-            response = requests.get(file_url, timeout=300, stream=True, headers=headers)
-            
-            if response.status_code != 200:
-                raise Exception(f"Download failed: HTTP {response.status_code}")
-            
-            filepath = UPLOAD_FOLDER / f"{job_id}_{filename}"
-            
-            # Get total size for progress
-            total_size = int(response.headers.get('content-length', 0))
-            downloaded = 0
-            
-            with open(filepath, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if total_size > 0:
-                        progress = 20 + int(30 * downloaded / total_size)
-                        jobs[job_id]['progress'] = min(progress, 50)
-            
-            jobs[job_id]['progress'] = 50
-            
-            # Analyze
-            if mode == 'quick':
-                result = run_trinity_quick(filepath, patient_id)
-            else:
-                result = run_trinity_deep(filepath, patient_id)
-
-            if result.get('success', False):
-                timeline = result.get('timeline', [])
-                charts = generate_clinical_charts(timeline, result)
-                clinical_report = generate_clinical_report_html(result, charts)
-
-                jobs[job_id]['result'] = result
-                jobs[job_id]['charts'] = charts
-                jobs[job_id]['clinical_report'] = clinical_report
-                jobs[job_id]['status'] = 'completed'
-                jobs[job_id]['progress'] = 100
-            else:
-                jobs[job_id]['status'] = 'failed'
-                jobs[job_id]['error'] = result.get('error', 'Analysis failed')
-        
-        except requests.exceptions.Timeout:
-            jobs[job_id]['status'] = 'failed'
-            jobs[job_id]['error'] = 'Download timeout (5 minutes)'
-        except Exception as e:
-            jobs[job_id]['status'] = 'failed'
-            jobs[job_id]['error'] = str(e)
-        
-        finally:
-            if filepath and filepath.exists():
-                try:
-                    filepath.unlink()
-                except:
-                    pass
-
-    thread = threading.Thread(target=download_and_analyze)
-    thread.start()
-
-    return jsonify({'job_id': job_id})
-
-@app.route('/save_result/<job_id>', methods=['POST'])
-def save_result(job_id):
-    """Save analysis result permanently (user requests to keep it)"""
+@app.route('/clinical_report_text/<job_id>')
+def clinical_report_text(job_id):
+    """Generate clinical text report for a completed job"""
     if job_id not in jobs:
         return jsonify({'error': 'Job not found'}), 404
     
@@ -677,59 +211,127 @@ def save_result(job_id):
     if job['status'] != 'completed':
         return jsonify({'error': 'Analysis not complete'}), 400
     
-    # Create permanent storage
-    saved_results_dir = BASE_DIR / 'saved_results'
-    saved_results_dir.mkdir(exist_ok=True)
+    # Get the result
+    result = job.get('result', {})
     
-    # Save with timestamp
+    # Create a simple clinical report
+    if result.get('mode') == 'quick':
+        report = f"""
+TRINITY CLINICAL REPORT
+{'=' * 60}
+File: {job.get('filename', 'unknown')}
+Risk Level: {'HIGH' if result.get('seizures_found', 0) > 0 else 'LOW'}
+Seizures Predicted: {result.get('seizures_found', 0)}
+Lead Times: {', '.join(result.get('lead_times', []))} seconds
+Peak Emergence: {result.get('peak_ratios', ['0'])[0]}x baseline
+
+RECOMMENDATION: {'IMMEDIATE ATTENTION - Seizure imminent' if result.get('seizures_found', 0) > 0 else 'Continue routine monitoring'}
+"""
+    else:
+        report = f"""
+TRINITY CLINICAL REPORT
+{'=' * 60}
+File: {job.get('filename', 'unknown')}
+FAILED SEIZURES DETECTED: {result.get('failed_seizures_count', 0)}
+Clinical Seizures: {result.get('clinical_seizures_count', 0)}
+Self-Correction Ratio: {result.get('failed_seizures_count', 0) / max(1, result.get('clinical_seizures_count', 1)):.1f}:1
+
+INTERPRETATION: The brain self-corrected {result.get('failed_seizures_count', 0)} times without progressing to clinical seizure.
+RECOMMENDATION: Reinforce natural self-correction mechanisms.
+"""
+    
+    return jsonify({'report': report})
+
+@app.route('/clinical_graph/<job_id>')
+def clinical_graph(job_id):
+    """Generate clinical graph for a completed job"""
+    if job_id not in jobs:
+        return "Job not found", 404
+    
+    job = jobs[job_id]
+    if job['status'] != 'completed':
+        return "Analysis not complete", 400
+    
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import io
+        
+        result = job.get('result', {})
+        timeline = result.get('timeline', [])
+        
+        if not timeline:
+            return "No timeline data", 404
+        
+        # Create figure
+        fig, ax = plt.subplots(figsize=(10, 4))
+        times = [t['time_sec'] for t in timeline]
+        risks = [abs(t['emergence']) for t in timeline]
+        
+        ax.fill_between(times, 0, risks, alpha=0.3, color='red')
+        ax.plot(times, risks, 'r-', linewidth=1.5)
+        ax.set_xlabel('Time (seconds)')
+        ax.set_ylabel('Risk Index')
+        ax.set_title(f'Seizure Risk - {job.get("filename", "Analysis")}')
+        ax.grid(True, alpha=0.3)
+        
+        img = io.BytesIO()
+        plt.savefig(img, format='png', dpi=100, bbox_inches='tight')
+        plt.close()
+        img.seek(0)
+        
+        return send_file(img, mimetype='image/png')
+        
+    except Exception as e:
+        print(f"Graph error: {e}")
+        return "Graph generation failed", 500
+
+@app.route('/save_result/<job_id>', methods=['POST'])
+def save_result(job_id):
+    """Save analysis result permanently"""
+    if job_id not in jobs:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    job = jobs[job_id]
+    if job['status'] != 'completed':
+        return jsonify({'error': 'Analysis not complete'}), 400
+    
+    saved_dir = BASE_DIR / 'saved_results'
+    saved_dir.mkdir(exist_ok=True)
+    
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    saved_filename = f"{job['patient_id']}_{job['filename']}_{timestamp}"
+    filename = f"{job.get('patient_id', 'unknown')}_{job.get('filename', 'result')}_{timestamp}.json"
     
-    # Save JSON result
-    json_path = saved_results_dir / f"{saved_filename}.json"
-    with open(json_path, 'w') as f:
+    save_path = saved_dir / filename
+    with open(save_path, 'w') as f:
         json.dump(job.get('result', {}), f, indent=2)
     
-    # Save clinical report if available
-    if job.get('clinical_report'):
-        report_path = saved_results_dir / f"{saved_filename}_report.txt"
-        with open(report_path, 'w') as f:
-            f.write(job['clinical_report'])
-    
-    return jsonify({
-        'success': True,
-        'saved_files': {
-            'json': str(json_path),
-            'report': str(report_path) if job.get('clinical_report') else None
-        }
-    })
+    return jsonify({'success': True, 'filename': filename})
 
 @app.route('/list_saved_results')
 def list_saved_results():
-    """List all saved analysis results"""
-    saved_results_dir = BASE_DIR / 'saved_results'
-    saved_results_dir.mkdir(exist_ok=True)
+    """List all saved results"""
+    saved_dir = BASE_DIR / 'saved_results'
+    saved_dir.mkdir(exist_ok=True)
     
     results = []
-    for file in saved_results_dir.glob('*.json'):
+    for file in sorted(saved_dir.glob('*.json'), key=lambda x: x.stat().st_mtime, reverse=True):
         stat = file.stat()
         results.append({
             'filename': file.name,
             'size': stat.st_size,
-            'modified': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            'modified': stat.st_mtime,
             'url': f"/download_saved/{file.name}"
         })
-    
-    # Sort by newest first
-    results.sort(key=lambda x: x['modified'], reverse=True)
     
     return jsonify({'results': results})
 
 @app.route('/download_saved/<filename>')
 def download_saved(filename):
-    """Download a saved result file"""
-    saved_results_dir = BASE_DIR / 'saved_results'
-    file_path = saved_results_dir / filename
+    """Download a saved result"""
+    saved_dir = BASE_DIR / 'saved_results'
+    file_path = saved_dir / filename
     
     if not file_path.exists():
         return "File not found", 404
@@ -739,20 +341,12 @@ def download_saved(filename):
 @app.route('/delete_saved/<filename>', methods=['DELETE'])
 def delete_saved(filename):
     """Delete a saved result"""
-    saved_results_dir = BASE_DIR / 'saved_results'
-    file_path = saved_results_dir / filename
+    saved_dir = BASE_DIR / 'saved_results'
+    file_path = saved_dir / filename
     
     if file_path.exists():
         file_path.unlink()
-        # Also delete associated report if exists
-        report_path = saved_results_dir / filename.replace('.json', '_report.txt')
-        if report_path.exists():
-            report_path.unlink()
         return jsonify({'success': True})
     
     return jsonify({'error': 'File not found'}), 404
 
-# Update the status endpoint to include can_save flag
-# (Find the status function and add this line)
-# In @app.route('/status/<job_id>'), add:
-# response['can_save'] = job['status'] == 'completed' and not job.get('batch', False)

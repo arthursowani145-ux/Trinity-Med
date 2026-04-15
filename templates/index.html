@@ -652,6 +652,7 @@
 
         <!-- MODE SELECTOR -->
         <div class="mode-selector">
+            <button class="mode-btn" data-mode="stream">📡 STREAMING</button>
             <button class="mode-btn active" data-mode="quick">⚡ Quick Prediction</button>
             <button class="mode-btn" data-mode="deep">◈ Deep Dive</button>
         </div>
@@ -790,6 +791,14 @@
                 document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentMode = btn.dataset.mode;
+                // Update UI for streaming mode
+                if (currentMode === "stream") {
+                    document.getElementById("urlInput").placeholder = "https://... (REQUIRED for streaming)";
+                    document.getElementById("dropZone").style.opacity = "0.5";
+                } else {
+                    document.getElementById("urlInput").placeholder = "https://physionet.org/... (optional)";
+                    document.getElementById("dropZone").style.opacity = "1";
+                }
             });
         });
 

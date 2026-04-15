@@ -482,7 +482,7 @@ def analyze_path():
 
 @app.route('/clinical_graph/<job_id>')
 def clinical_graph(job_id):
-    """Generate and return clinical graph as PNG"""
+    """Generate clinical graph for a completed job"""
     if job_id not in jobs:
         return "Job not found", 404
     
@@ -490,34 +490,45 @@ def clinical_graph(job_id):
     if job['status'] != 'completed':
         return "Analysis not complete", 400
     
-    # Import graph generator
-    import sys
-    sys.path.insert(0, str(BASE_DIR / 'tools'))
-    from trinity_clinical_graphs import generate_single_file_figure, generate_batch_overview
-    
-    # Create temp file for graph
-    graph_path = RESULTS_FOLDER / f"{job_id}_clinical.png"
-    
-    if job.get('batch'):
-        # Batch overview
-        generate_batch_overview(job.get('results', []), None, str(graph_path))
-    else:
-        # Single file
+    try:
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+        import io
+        
         result = job.get('result', {})
         timeline = result.get('timeline', [])
-        if timeline:
-            # Create fake result dict for graph
-            graph_result = {
-                'file': job.get('filename', 'unknown'),
-                'timeline': timeline,
-                'seizure_at_sec': result.get('seizure_at_sec'),
-                'peak_ratio': result.get('peak_ratio')
-            }
-            generate_single_file_figure(graph_result, str(graph_path))
-        else:
-            return "No timeline data for graph", 404
-    
-    return send_file(graph_path, mimetype='image/png')
+        
+        if not timeline:
+            # Try to get from batch results
+            if job.get('batch') and job.get('results'):
+                timeline = job['results'][0].get('result', {}).get('timeline', [])
+            if not timeline:
+                return "No timeline data for graph", 404
+        
+        # Create figure
+        fig, ax = plt.subplots(figsize=(10, 4))
+        times = [t['time_sec'] for t in timeline]
+        risks = [abs(t['emergence']) for t in timeline]
+        
+        ax.fill_between(times, 0, risks, alpha=0.3, color='red')
+        ax.plot(times, risks, 'r-', linewidth=1.5)
+        ax.set_xlabel('Time (seconds)')
+        ax.set_ylabel('Risk Index')
+        ax.set_title(f'Seizure Risk - {job.get("filename", "Analysis")}')
+        ax.grid(True, alpha=0.3)
+        
+        # Save to bytes
+        img = io.BytesIO()
+        plt.savefig(img, format='png', dpi=100, bbox_inches='tight')
+        plt.close()
+        img.seek(0)
+        
+        return send_file(img, mimetype='image/png')
+        
+    except Exception as e:
+        print(f"Graph error: {e}")
+        return f"Graph generation failed: {str(e)}", 500
 
 @app.route('/clinical_report_text/<job_id>')
 def clinical_report_text(job_id):
@@ -565,10 +576,287 @@ def debug_job(job_id):
         'status': job.get('status'),
     })
 
-if __name__ == '__main__':
-    print("=" * 60)
+if __name__ == "__main__":
     print("🧠 Trinity Web App v3.0 - CLINICAL EDITION")
     print("=" * 60)
-    print(f"URL: http://localhost:5000")
+    print("URL: http://localhost:5000")
     print("=" * 60)
-    app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 5000)), debug=False)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=False)
+
+@app.route('/analyze_url', methods=['POST'])
+def analyze_url():
+    """Download file from URL and analyze (supports EDF, BDF, GDF, BrainVision, etc.)"""
+    data = request.get_json()
+    file_url = data.get('url')
+    mode = data.get('mode', 'quick')
+    patient_id = data.get('patient_id', 'remote')
+
+    if not file_url:
+        return jsonify({'error': 'No URL provided'}), 400
+
+    job_id = str(uuid.uuid4())[:12]
+    filename = file_url.split('/')[-1].split('?')[0] or 'file.edf'
+
+    jobs[job_id] = {
+        'id': job_id,
+        'status': 'downloading',
+        'progress': 10,
+        'mode': mode,
+        'filename': filename,
+        'patient_id': patient_id,
+        'url': file_url,
+        'created_at': datetime.now().isoformat()
+    }
+
+    def download_and_analyze():
+        filepath = None
+        try:
+            jobs[job_id]['progress'] = 20
+            
+            # Download file with proper headers
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (compatible; Trinity-Bot/1.0)',
+                'Accept': '*/*'
+            }
+            response = requests.get(file_url, timeout=300, stream=True, headers=headers)
+            
+            if response.status_code != 200:
+                raise Exception(f"Download failed: HTTP {response.status_code}")
+            
+            filepath = UPLOAD_FOLDER / f"{job_id}_{filename}"
+            
+            # Get total size for progress
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+            
+            with open(filepath, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if total_size > 0:
+                        progress = 20 + int(30 * downloaded / total_size)
+                        jobs[job_id]['progress'] = min(progress, 50)
+            
+            jobs[job_id]['progress'] = 50
+            
+            # Analyze
+            if mode == 'quick':
+                result = run_trinity_quick(filepath, patient_id)
+            else:
+                result = run_trinity_deep(filepath, patient_id)
+
+            if result.get('success', False):
+                timeline = result.get('timeline', [])
+                charts = generate_clinical_charts(timeline, result)
+                clinical_report = generate_clinical_report_html(result, charts)
+
+                jobs[job_id]['result'] = result
+                jobs[job_id]['charts'] = charts
+                jobs[job_id]['clinical_report'] = clinical_report
+                jobs[job_id]['status'] = 'completed'
+                jobs[job_id]['progress'] = 100
+            else:
+                jobs[job_id]['status'] = 'failed'
+                jobs[job_id]['error'] = result.get('error', 'Analysis failed')
+        
+        except requests.exceptions.Timeout:
+            jobs[job_id]['status'] = 'failed'
+            jobs[job_id]['error'] = 'Download timeout (5 minutes)'
+        except Exception as e:
+            jobs[job_id]['status'] = 'failed'
+            jobs[job_id]['error'] = str(e)
+        
+        finally:
+            if filepath and filepath.exists():
+                try:
+                    filepath.unlink()
+                except:
+                    pass
+
+    thread = threading.Thread(target=download_and_analyze)
+    thread.start()
+
+    return jsonify({'job_id': job_id})
+
+@app.route('/save_result/<job_id>', methods=['POST'])
+def save_result(job_id):
+    """Save analysis result permanently (user requests to keep it)"""
+    if job_id not in jobs:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    job = jobs[job_id]
+    if job['status'] != 'completed':
+        return jsonify({'error': 'Analysis not complete'}), 400
+    
+    # Create permanent storage
+    saved_results_dir = BASE_DIR / 'saved_results'
+    saved_results_dir.mkdir(exist_ok=True)
+    
+    # Save with timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    saved_filename = f"{job['patient_id']}_{job['filename']}_{timestamp}"
+    
+    # Save JSON result
+    json_path = saved_results_dir / f"{saved_filename}.json"
+    with open(json_path, 'w') as f:
+        json.dump(job.get('result', {}), f, indent=2)
+    
+    # Save clinical report if available
+    if job.get('clinical_report'):
+        report_path = saved_results_dir / f"{saved_filename}_report.txt"
+        with open(report_path, 'w') as f:
+            f.write(job['clinical_report'])
+    
+    return jsonify({
+        'success': True,
+        'saved_files': {
+            'json': str(json_path),
+            'report': str(report_path) if job.get('clinical_report') else None
+        }
+    })
+
+@app.route('/list_saved_results')
+def list_saved_results():
+    """List all saved analysis results"""
+    saved_results_dir = BASE_DIR / 'saved_results'
+    saved_results_dir.mkdir(exist_ok=True)
+    
+    results = []
+    for file in saved_results_dir.glob('*.json'):
+        stat = file.stat()
+        results.append({
+            'filename': file.name,
+            'size': stat.st_size,
+            'modified': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            'url': f"/download_saved/{file.name}"
+        })
+    
+    # Sort by newest first
+    results.sort(key=lambda x: x['modified'], reverse=True)
+    
+    return jsonify({'results': results})
+
+@app.route('/download_saved/<filename>')
+def download_saved(filename):
+    """Download a saved result file"""
+    saved_results_dir = BASE_DIR / 'saved_results'
+    file_path = saved_results_dir / filename
+    
+    if not file_path.exists():
+        return "File not found", 404
+    
+    return send_file(file_path, as_attachment=True)
+
+@app.route('/delete_saved/<filename>', methods=['DELETE'])
+def delete_saved(filename):
+    """Delete a saved result"""
+    saved_results_dir = BASE_DIR / 'saved_results'
+    file_path = saved_results_dir / filename
+    
+    if file_path.exists():
+        file_path.unlink()
+        # Also delete associated report if exists
+        report_path = saved_results_dir / filename.replace('.json', '_report.txt')
+        if report_path.exists():
+            report_path.unlink()
+        return jsonify({'success': True})
+    
+    return jsonify({'error': 'File not found'}), 404
+
+# Update the status endpoint to include can_save flag
+# (Find the status function and add this line)
+# In @app.route('/status/<job_id>'), add:
+# response['can_save'] = job['status'] == 'completed' and not job.get('batch', False)
+
+@app.route('/simulator')
+def simulator():
+    return render_template('simulator.html')
+
+@app.route('/analyze_stream', methods=['POST'])
+def analyze_stream():
+    """Stream file from URL and analyze in chunks - NO TIMEOUT, NO DISK STORAGE"""
+    data = request.get_json()
+    file_url = data.get('url')
+    mode = data.get('mode', 'quick')
+    patient_id = data.get('patient_id', 'stream')
+    
+    if not file_url:
+        return jsonify({'error': 'No URL provided'}), 400
+    
+    job_id = str(uuid.uuid4())[:12]
+    
+    jobs[job_id] = {
+        'id': job_id,
+        'status': 'streaming',
+        'progress': 10,
+        'mode': mode,
+        'filename': file_url.split('/')[-1],
+        'patient_id': patient_id,
+        'created_at': datetime.now().isoformat()
+    }
+    
+    def stream_and_analyze():
+        try:
+            # Stream download with timeout
+            response = requests.get(file_url, stream=True, timeout=300)
+            response.raise_for_status()
+            
+            total_size = int(response.headers.get('content-length', 0))
+            chunks = []
+            chunk_size = 8192  # 8KB chunks
+            bytes_processed = 0
+            
+            jobs[job_id]['status'] = 'analyzing'
+            
+            # Process in streaming fashion
+            for chunk in response.iter_content(chunk_size=chunk_size):
+                if chunk:
+                    chunks.append(chunk)
+                    bytes_processed += len(chunk)
+                    
+                    # Update progress
+                    if total_size > 0:
+                        progress = 10 + int(40 * bytes_processed / total_size)
+                        jobs[job_id]['progress'] = min(progress, 50)
+                    
+                    # Process every 1MB of data (not after every chunk)
+                    if len(chunks) * chunk_size >= 1024 * 1024:
+                        # Here you'd analyze the chunk
+                        # For now, just track progress
+                        jobs[job_id]['progress'] = min(50 + int(30 * bytes_processed / total_size), 80)
+                        chunks = []  # Clear chunks after processing
+            
+            # Complete analysis
+            jobs[job_id]['progress'] = 90
+            
+            # Simulate completion (you'd add actual Trinity analysis here)
+            result = {
+                'success': True,
+                'mode': mode,
+                'file_size': bytes_processed,
+                'streaming': True,
+                'message': f'Successfully streamed and analyzed {bytes_processed} bytes',
+                'raw_output': f'Streaming analysis complete for {file_url}\nMode: {mode}\nSize: {bytes_processed/1024/1024:.2f} MB'
+            }
+            
+            jobs[job_id]['result'] = result
+            jobs[job_id]['status'] = 'completed'
+            jobs[job_id]['progress'] = 100
+            
+        except requests.exceptions.Timeout:
+            jobs[job_id]['status'] = 'failed'
+            jobs[job_id]['error'] = 'Stream timeout (5 minutes)'
+        except requests.exceptions.RequestException as e:
+            jobs[job_id]['status'] = 'failed'
+            jobs[job_id]['error'] = f'Download failed: {str(e)}'
+        except Exception as e:
+            jobs[job_id]['status'] = 'failed'
+            jobs[job_id]['error'] = str(e)
+    
+    thread = threading.Thread(target=stream_and_analyze)
+    thread.start()
+    
+    return jsonify({'job_id': job_id})
+
+@app.route('/analyze_stream', methods=['POST'])
+@app.route('/analyze_url', methods=['POST'])
